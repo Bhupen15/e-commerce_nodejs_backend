@@ -4,6 +4,10 @@ const cors = require('cors');
 const Product = require('./db/product');
 const app = express();
 require('./db/config');
+
+const Jwt = require('jsonwebtoken');
+const jwtKey = "e-comm";
+
 // const mongoose = require("mongoose");
 
 app.use(express.json());
@@ -21,7 +25,12 @@ app.post("/register", async (req, res) => {
 
     user = user.toObject();
     delete user.password;
-    res.send(user);
+    Jwt.sign({ user }, jwtKey, { expiresIn: "2h" }, (err, token) => {
+        if (err) {
+            res.send({ result: "Something went wrong, Please try after sometime" });
+        }
+        res.send({ user, auth: token });
+    })
 
 
 });
@@ -31,7 +40,13 @@ app.post("/login", async (req, res) => {
     if (req.body.password && req.body.email) {
         let user = await User.findOne(req.body).select("-password");
         if (user) {
-            res.send(user);
+            Jwt.sign({ user }, jwtKey, { expiresIn: "2h" }, (err, token) => {
+                if (err) {
+                    res.send({ result: "Something went wrong, Please try after sometime" });
+                }
+                res.send({ user, auth: token });
+            })
+
         }
         else {
             res.send({ result: 'No user found' });
@@ -52,7 +67,7 @@ app.post("/add-product", async (req, res) => {
     res.send(result);
 
 })
-app.get("/product-list", async (req, res) => {
+app.get("/product-list",  async (req, res) => {
 
     let products = await Product.find();
 
@@ -92,17 +107,26 @@ app.get("/singleproduct/:id", async (req, res) => {
     }
 })
 
-app.get("/search/:key", async(req, res)=>{
+app.get("/search/:key", verifyToken, async (req, res) => {
     let result = await Product.find({
-        "$or":[
-            {name: {$regex: req.params.key}},
-            {price: {$regex: req.params.key}},
-            {company: {$regex: req.params.key}},
-            {category: {$regex: req.params.key}},
+        "$or": [
+            { name: { $regex: req.params.key } },
+            { price: { $regex: req.params.key } },
+            { company: { $regex: req.params.key } },
+            { category: { $regex: req.params.key } },
         ]
     });
     res.send(result);
 })
+
+function verifyToken(req, res, next){
+
+    const token = req.headers['authorization'];
+
+    console.log("Middileware called", token);
+    next();
+}
+
 
 app.listen(5002);
 
