@@ -8,6 +8,9 @@ require('./db/config');
 const Jwt = require('jsonwebtoken');
 const jwtKey = "e-comm";
 
+
+const multer = require('multer');
+const dayjs = require('dayjs');
 // const mongoose = require("mongoose");
 
 app.use(express.json());
@@ -59,7 +62,7 @@ app.post("/login", async (req, res) => {
 
 });
 
-app.post("/add-product", async (req, res) => {
+app.post("/add-product", verifyToken, async (req, res) => {
 
     let product = new Product(req.body);
     let result = await product.save();
@@ -67,7 +70,7 @@ app.post("/add-product", async (req, res) => {
     res.send(result);
 
 })
-app.get("/product-list",  async (req, res) => {
+app.get("/product-list", verifyToken, async (req, res) => {
 
     let products = await Product.find();
 
@@ -80,13 +83,13 @@ app.get("/product-list",  async (req, res) => {
 
 })
 
-app.delete("/deleteproduct/:id", async (req, res) => {
+app.delete("/deleteproduct/:id", verifyToken, async (req, res) => {
 
     const result = await Product.deleteOne({ _id: req.params.id })
     res.send(result);
 })
 
-app.put("/updateproduct/:id", async (req, res) => {
+app.put("/updateproduct/:id", verifyToken, async (req, res) => {
 
     const result = await Product.updateOne(
         { _id: req.params.id },
@@ -96,7 +99,7 @@ app.put("/updateproduct/:id", async (req, res) => {
     )
     res.send(result);
 })
-app.get("/singleproduct/:id", async (req, res) => {
+app.get("/singleproduct/:id", verifyToken, async (req, res) => {
 
     let result = await Product.findOne({ _id: req.params.id });
     if (result) {
@@ -110,22 +113,66 @@ app.get("/singleproduct/:id", async (req, res) => {
 app.get("/search/:key", verifyToken, async (req, res) => {
     let result = await Product.find({
         "$or": [
-            { name: { $regex: req.params.key } },
+            { name: { $regex: req.params.key, $options: 'i'  } },
             { price: { $regex: req.params.key } },
-            { company: { $regex: req.params.key } },
-            { category: { $regex: req.params.key } },
+            { company: { $regex: req.params.key, $options: 'i' }  },
+            { category: { $regex: req.params.key, $options: 'i'  } },
         ]
     });
     res.send(result);
 })
 
-function verifyToken(req, res, next){
+function verifyToken(req, res, next) {
 
-    const token = req.headers['authorization'];
+    let token = req.headers['authorization'];
+    if (token) {
+        token = token.split(' ')[1];
 
-    console.log("Middileware called", token);
-    next();
+        // console.log("Middileware called", token);
+        // token= token.slice(1,-1);
+        Jwt.verify(token, jwtKey, (err, valid) => {
+            if (err) {
+                res.status(401).send({ result: "Please provide valid token" });
+
+            }
+            else {
+
+                next();
+            }
+        });
+    }
+    else {
+        res.status(403).send({ result: "Please add token with header" });
+    }
+
 }
+
+
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: function (req, file, cb) {
+            cb(null, 'uploads/')
+        },
+        filename: function (req, file, cb) {
+            let a = file.originalname.split(".");
+            let ex = a.pop();
+            let name = a.join("_");
+
+            let k = name + "-" + dayjs().format('YYYY-MM-DD_HH:MM:ss:SSS') + "." + ex;
+            cb(null, k);
+        }
+    })
+}).single('image');
+
+app.post("/upload-image", upload, async(req, res) => {
+    console.log(req.file);
+
+    let user = new User(req.body.file);
+  
+
+    res.send("File uploaded");
+    // res.send("File uploaded");
+})
 
 
 app.listen(5002);
