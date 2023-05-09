@@ -1,29 +1,32 @@
 const express = require('express');
+const path = require('path');
 const User = require("./db/user");
 const cors = require('cors');
 const Product = require('./db/product');
 const app = express();
+const dotenv = require('dotenv');
+
+dotenv.config();
+
+app.use("/uploads", express.static(path.join(__dirname, 'uploads/')));
+
 require('./db/config');
 
 const Jwt = require('jsonwebtoken');
-const jwtKey = "e-comm";
+const jwtKey = process.env.JWT_KEY;
 
 
 const multer = require('multer');
 const dayjs = require('dayjs');
-// const mongoose = require("mongoose");
 
 app.use(express.json());
 app.use(cors());
 
 
-
+//User registration api
 app.post("/register", async (req, res) => {
 
-    //    let user= new User(req.body);
-    //    let result = await user.save();
-    // let user = User.create({name:"test",email:"asdasd",password:"asdasdasd"})
-    // console.log(req.body, User);
+
     let user = await User.create(req.body);
 
     user = user.toObject();
@@ -38,8 +41,9 @@ app.post("/register", async (req, res) => {
 
 });
 
+//User login api
 app.post("/login", async (req, res) => {
-
+//  console.log("here", )
     if (req.body.password && req.body.email) {
         let user = await User.findOne(req.body).select("-password");
         if (user) {
@@ -62,6 +66,7 @@ app.post("/login", async (req, res) => {
 
 });
 
+//Add product api
 app.post("/add-product", verifyToken, async (req, res) => {
 
     let product = new Product(req.body);
@@ -70,11 +75,23 @@ app.post("/add-product", verifyToken, async (req, res) => {
     res.send(result);
 
 })
+
+//Product list api 
 app.get("/product-list", verifyToken, async (req, res) => {
 
-    let products = await Product.find();
+
+
+    let products = await Product.find({userId:req.user._id});
 
     if (products.length > 0) {
+        // filteredproducts = products.filter((val) => {
+        //     if (val.userId == req.user._id)
+        //         return true;
+        //     else
+        //         return false;
+        // }
+
+        // )
         res.send(products);
     }
     else {
@@ -83,12 +100,14 @@ app.get("/product-list", verifyToken, async (req, res) => {
 
 })
 
+//Delete product api
 app.delete("/deleteproduct/:id", verifyToken, async (req, res) => {
 
     const result = await Product.deleteOne({ _id: req.params.id })
     res.send(result);
 })
 
+//Update product api
 app.put("/updateproduct/:id", verifyToken, async (req, res) => {
 
     const result = await Product.updateOne(
@@ -99,6 +118,8 @@ app.put("/updateproduct/:id", verifyToken, async (req, res) => {
     )
     res.send(result);
 })
+
+//Single product print api
 app.get("/singleproduct/:id", verifyToken, async (req, res) => {
 
     let result = await Product.findOne({ _id: req.params.id });
@@ -110,36 +131,39 @@ app.get("/singleproduct/:id", verifyToken, async (req, res) => {
     }
 })
 
+//Search product api
 app.get("/search/:key", verifyToken, async (req, res) => {
     let result = await Product.find({
         "$or": [
-            { name: { $regex: req.params.key, $options: 'i'  } },
+            { name: { $regex: req.params.key, $options: 'i' } },
             { price: { $regex: req.params.key } },
-            { company: { $regex: req.params.key, $options: 'i' }  },
-            { category: { $regex: req.params.key, $options: 'i'  } },
+            { company: { $regex: req.params.key, $options: 'i' } },
+            { category: { $regex: req.params.key, $options: 'i' } },
         ]
     });
     res.send(result);
 })
 
+//VerifyToken function
 function verifyToken(req, res, next) {
 
     let token = req.headers['authorization'];
     if (token) {
         token = token.split(' ')[1];
 
-        // console.log("Middileware called", token);
-        // token= token.slice(1,-1);
-        Jwt.verify(token, jwtKey, (err, valid) => {
+        const user = Jwt.verify(token, jwtKey, (err, data) => {
             if (err) {
                 res.status(401).send({ result: "Please provide valid token" });
 
             }
             else {
 
+                req.user = data.user;
+
                 next();
             }
         });
+
     }
     else {
         res.status(403).send({ result: "Please add token with header" });
@@ -147,7 +171,7 @@ function verifyToken(req, res, next) {
 
 }
 
-
+//Upload image function
 const upload = multer({
     storage: multer.diskStorage({
         destination: function (req, file, cb) {
@@ -164,16 +188,33 @@ const upload = multer({
     })
 }).single('image');
 
-app.post("/upload-image", upload, async(req, res) => {
-    console.log(req.file);
 
-    let user = new User(req.body.file);
-  
+//Upload image api
+app.post("/upload-image", upload, verifyToken, async (req, res) => {
 
-    res.send("File uploaded");
-    // res.send("File uploaded");
+    const user = await User.updateOne({ _id: req.user._id },
+        {
+            $set: { image: req.file.path }
+        }
+    )
+
+    const updated_user = await User.findById(req.user._id);
+
+    res.send(updated_user);
+
 })
 
+//Single user print api
+app.get("/me", verifyToken, async (req, res) => {
+
+    let result = await User.findOne({ _id: req.user._id });
+    if (result) {
+        res.send(result);
+    }
+    else {
+        res.send({ result: "No record found" });
+    }
+})
 
 app.listen(5002);
 
