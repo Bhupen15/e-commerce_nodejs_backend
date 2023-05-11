@@ -66,10 +66,16 @@ app.post("/login", async (req, res) => {
 
 });
 
+
+
+
 //Add product api
 app.post("/add-product", verifyToken, async (req, res) => {
 
-    let product = new Product(req.body);
+    let product = new Product({
+        userId:req.user._id,
+        ...req.body,
+    });
     let result = await product.save();
 
     res.send(result);
@@ -81,8 +87,11 @@ app.get("/product-list", verifyToken, async (req, res) => {
 
 
 
-    let products = await Product.find({userId:req.user._id});
-
+    let products = await Product.find({userId:req.user._id})
+    // .populate({
+    //     path:"userId",
+    //     select:"_id name email"
+    // });
     if (products.length > 0) {
         // filteredproducts = products.filter((val) => {
         //     if (val.userId == req.user._id)
@@ -92,6 +101,7 @@ app.get("/product-list", verifyToken, async (req, res) => {
         // }
 
         // )
+       
         res.send(products);
     }
     else {
