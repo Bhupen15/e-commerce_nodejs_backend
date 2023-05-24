@@ -8,7 +8,7 @@ const productSchema = new mongoose.Schema({
     category: String,
     userId: String,
     // userId:{ type: mongoose.Types.ObjectId, ref: "Users" },
-    company: String 
+    company: String
 
 });
 

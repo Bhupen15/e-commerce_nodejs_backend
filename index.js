@@ -43,7 +43,7 @@ app.post("/register", async (req, res) => {
 
 //User login api
 app.post("/login", async (req, res) => {
-//  console.log("here", )
+    //  console.log("here", )
     if (req.body.password && req.body.email) {
         let user = await User.findOne(req.body).select("-password");
         if (user) {
@@ -53,6 +53,7 @@ app.post("/login", async (req, res) => {
                 }
                 res.send({ user, auth: token });
             })
+
 
         }
         else {
@@ -73,7 +74,7 @@ app.post("/login", async (req, res) => {
 app.post("/add-product", verifyToken, async (req, res) => {
 
     let product = new Product({
-        userId:req.user._id,
+        userId: req.user._id,
         ...req.body,
     });
     let result = await product.save();
@@ -87,22 +88,28 @@ app.get("/product-list", verifyToken, async (req, res) => {
 
 
 
-    let products = await Product.find({userId:req.user._id})
+    const resultPerPage = 3;
+    // console.log(req.query);
+    // console.log(req.query.page);
+    const page = req.query.page;
+
+    const productskip = resultPerPage * (page - 1);
+
+    // console.log(productskip)
+    let products = await Product.find({ userId: req.user._id }).sort({ 'name': 1 }).limit(3).skip(productskip);
     // .populate({
     //     path:"userId",
     //     select:"_id name email"
     // });
+    let totalProducts = (await Product.find({ userId: req.user._id })).length;
     if (products.length > 0) {
-        // filteredproducts = products.filter((val) => {
-        //     if (val.userId == req.user._id)
-        //         return true;
-        //     else
-        //         return false;
-        // }
 
-        // )
-       
-        res.send(products);
+
+        res.send({
+            products: products,
+            totalProducts
+        });
+
     }
     else {
         res.send({ result: "No product found" });
@@ -142,15 +149,15 @@ app.get("/singleproduct/:id", verifyToken, async (req, res) => {
 })
 
 //Search product api
-app.get("/search/:key", verifyToken, async (req, res) => {
+app.get("/search", verifyToken, async (req, res) => {
     let result = await Product.find({
         "$or": [
-            { name: { $regex: req.params.key, $options: 'i' } },
-            { price: { $regex: req.params.key } },
-            { company: { $regex: req.params.key, $options: 'i' } },
-            { category: { $regex: req.params.key, $options: 'i' } },
-        ]
-    });
+            { name: { $regex: req.query.key, $options: 'i' } },
+            { price: { $regex: req.query.key } },
+            { company: { $regex: req.query.key, $options: 'i' } },
+            { category: { $regex: req.query.key, $options: 'i' } },
+        ], "userId": req.user._id,
+    }).sort({ 'name': 1 });
     res.send(result);
 })
 
